@@ -1,0 +1,18 @@
+{
+    "id": "cardinal",
+    "name": "Cardinal",
+    "description": "Dynamically load and unload Dimensions",
+    "version": "${version}",
+    "side": "universal",
+    "initializers": [
+        "com.github.glasspane.cardinal.Cardinal"
+    ],
+    "requires": {
+        "fabric": "*",
+        "textilelib": "*",
+        "mesh": "*"
+    },
+    "mixins": {
+        "common": "cardinal.common.json"
+    }
+}

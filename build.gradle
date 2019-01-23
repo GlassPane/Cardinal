@@ -1,0 +1,171 @@
+import java.nio.charset.StandardCharsets
+import java.time.Year
+
+plugins {
+    id "fabric-loom" version "0.2.0-SNAPSHOT"
+    id "net.minecrell.licenser" version "0.2.1"
+    id "com.matthewprenger.cursegradle" version "1.1.2"
+    id "maven-publish"
+}
+
+sourceCompatibility = targetCompatibility = JavaVersion.VERSION_1_8
+
+group = "com.github.GlassPane"
+archivesBaseName = "Cardinal"
+version = "${mod_version}"
+
+minecraft {
+}
+
+processResources {
+    // this will ensure that this task is redone when there"s a change
+    inputs.property "version", project.version
+
+    // replace stuff in fabric.mod.json, nothing else
+    from(sourceSets.main.resources.srcDirs) {
+        include "fabric.mod.json"
+
+        // add mod metadata
+        expand "version": project.version
+    }
+
+    // copy everything else, that"s not the mcmod.info
+    from(sourceSets.main.resources.srcDirs) {
+        exclude "fabric.mod.json"
+    }
+}
+
+repositories {
+    maven {
+        name = "CurseForge"
+        url = "https://minecraft.curseforge.com/api/maven"
+    }
+    maven {
+        name = "JitPack"
+        url = "https://jitpack.io"
+    }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${mc_version}"
+    mappings "net.fabricmc:yarn:${yarn_mappings}"
+    modCompile "net.fabricmc:fabric-loader:${loader_version}"
+    modCompile "net.fabricmc:fabric:${fabric_version}"
+    modCompile "com.github.GlassPane:Mesh:${mesh_version}"
+    compileOnly "com.google.code.findbugs:jsr305:${findbugs_version}"
+}
+
+compileJava {
+    options.encoding = StandardCharsets.UTF_8.name()
+}
+
+if (JavaVersion.current().isJava8Compatible()) {
+    allprojects {
+        tasks.withType(Javadoc) {
+            options.addStringOption("Xdoclint:none", "-quiet")
+        }
+    }
+}
+
+jar {
+    from "LICENSE.md"
+    manifest.mainAttributes(
+            "Implementation-Title": project.archivesBaseName,
+            "Implementation-Version": project.version,
+            "Maven-Artifact": "${project.group}:${project.name}:${project.version}".toLowerCase(Locale.ROOT),
+            "Built-On-Minecraft": "${mc_version}",
+            "Built-On-Java": "${System.getProperty("java.vm.version")} (${System.getProperty("java.vm.vendor")})"
+    )
+}
+
+task sourcesJar(type: Jar, dependsOn: classes) {
+    from sourceSets.main.allSource
+    classifier = "sources"
+}
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+    from javadoc.destinationDir
+    from "LICENSE.md"
+    classifier = "javadoc"
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifact jar
+            artifact javadocJar
+            artifact sourcesJar
+        }
+    }
+
+    repositories {
+        mavenLocal()
+    }
+}
+
+curseforge {
+    if (project.hasProperty("curse_key")) {
+        apiKey = findProperty("curse_key")
+    }
+
+    if (project.hasProperty("curseforge_id")) {
+        project {
+            id = findProperty("curseforge_id")
+            mainArtifact(jar) {
+                displayName = "${project.archivesBaseName} MC${mc_version} v${mod_version}"
+            }
+            releaseType = project.release_type
+
+            //TODO remove when MC 1.14 releases
+            //usually automatically determined by the CurseGradle plugin
+            addGameVersion '1.14-Snapshot'
+
+            //changelogType = "markdown"
+            //changelog = change_log //TODO generate changelog
+
+            //relations {
+            //
+            //}
+
+            addArtifact javadocJar
+            addArtifact sourcesJar
+        }
+        options {
+            forgeGradleIntegration = false
+        }
+
+    }
+}
+
+license {
+    header = file("code_quality/${license_header}_HEADER.txt")
+    // Apply licenses only to main source set
+    sourceSets = [project.sourceSets.main]
+    include "**/*.java"
+    charset = StandardCharsets.UTF_8.name()
+
+    style {
+        java = "BLOCK_COMMENT"
+    }
+    newLine = false // Disables the empty line between the header and package name
+    ignoreFailures = true //Ignore failures and only print a warning on license violations
+
+    //export variables
+    ext {
+        year = Year.now()
+        projectDisplayName = project.archivesBaseName
+    }
+}
+tasks.publish.dependsOn build
+
+afterEvaluate {
+    //make curseforge task depend on build
+    if (project.hasProperty("curseforge_id")) {
+        tasks.each {
+            if (it.name == "curseforge" + findProperty(curseforge_id)) {
+                it.dependsOn build
+                it.mustRunAfter build
+            }
+        }
+    }
+}

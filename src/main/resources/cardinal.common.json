@@ -1,0 +1,11 @@
+{
+    "required": true,
+    "package": "com.github.glasspane.cardinal.mixin.common",
+    "compatibilityLevel": "JAVA_8",
+    "mixins": [
+        "MixinMinecraftServer"
+    ],
+    "injectors": {
+        "defaultRequire": 1
+    }
+}

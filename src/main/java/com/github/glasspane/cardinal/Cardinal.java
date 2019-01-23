@@ -28,7 +28,7 @@ import org.apache.logging.log4j.*;
 public class Cardinal implements ModInitializer {
 
     public static final String MODID = "cardinal";
-    public static final String MOD_NAME = "Aincrad";
+    public static final String MOD_NAME = "Cardinal";
     public static final String VERSION = "${version}";
 
     private static final Logger log = LogManager.getLogger(MODID, new PrefixMessageFactory(MOD_NAME));

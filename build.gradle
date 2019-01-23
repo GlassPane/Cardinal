@@ -95,11 +95,45 @@ publishing {
             artifact jar
             artifact javadocJar
             artifact sourcesJar
+            pom {
+                name = "Mesh"
+                url = "https://github.com/GlassPane/Cardinal"
+                licenses {
+                    license {
+                        name = "GNU Lesser General Public License"
+                        url = "https://github.com/GlassPane/Cardinal/blob/master/LICENSE.md"
+                    }
+                }
+                scm {
+                    url = "https://github.com/GlassPane/Cardinal"
+                    connection = "scm:git:git://github.com/GlassPane/Cardinal.git"
+                    developerConnection = "scm:git:git@github.com:GlassPane/Cardinal.git"
+                }
+                issueManagement {
+                    system = "github"
+                    url = "https://github.com/GlassPane/Cardinal/issues"
+                }
+            }
         }
     }
 
     repositories {
-        mavenLocal()
+        //mavenLocal() //uncomment this to publish to the local maven
+
+        //publish to the nerdhub maven if credentials are set
+        if (project.hasProperty("nerdhub_maven_user")) {
+            maven {
+                name = "NerdHub"
+                url = findProperty("nerdhub_maven_url")
+                credentials {
+                    username = findProperty("nerdhub_maven_user")
+                    password = findProperty("nerdhub_maven_pass")
+                }
+                authentication {
+                    basic(BasicAuthentication)
+                }
+            }
+        }
     }
 }
 

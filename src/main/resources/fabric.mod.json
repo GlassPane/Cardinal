@@ -9,7 +9,6 @@
     ],
     "requires": {
         "fabric": "*",
-        "textilelib": "*",
         "mesh": "*"
     },
     "mixins": {

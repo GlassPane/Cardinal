@@ -37,6 +37,10 @@ processResources {
 
 repositories {
     maven {
+        name = "NerdHubMC"
+        url = "https://maven.abusedmaster.xyz"
+    }
+    maven {
         name = "CurseForge"
         url = "https://minecraft.curseforge.com/api/maven"
     }

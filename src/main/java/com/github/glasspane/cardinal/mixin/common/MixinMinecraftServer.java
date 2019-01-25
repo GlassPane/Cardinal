@@ -18,11 +18,12 @@
 package com.github.glasspane.cardinal.mixin.common;
 
 import com.github.glasspane.cardinal.Cardinal;
+import com.github.glasspane.cardinal.api.WorldReloader;
+import com.github.glasspane.cardinal.util.IOHelper;
 import net.minecraft.server.*;
 import net.minecraft.server.world.*;
 import net.minecraft.util.profiler.DisableableProfiler;
 import net.minecraft.world.*;
-import net.minecraft.world.chunk.storage.RegionFileCache;
 import net.minecraft.world.dimension.DimensionType;
 import net.minecraft.world.level.*;
 import org.apache.commons.lang3.Validate;
@@ -30,11 +31,12 @@ import org.spongepowered.asm.mixin.*;
 import org.spongepowered.asm.mixin.injection.*;
 import org.spongepowered.asm.mixin.injection.callback.*;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 
 @Mixin(MinecraftServer.class)
-public abstract class MixinMinecraftServer {
+public abstract class MixinMinecraftServer implements WorldReloader {
 
     @Shadow
     @Final
@@ -45,32 +47,33 @@ public abstract class MixinMinecraftServer {
     @Shadow
     @Final
     private Map<DimensionType, ServerWorld> worlds;
-    private WorldSaveHandler saveHandler;
+    private OldWorldSaveHandler saveHandler;
     private WorldGenerationProgressListener worldGenerationProgressListener;
 
     @Inject(method = "createWorlds", at = @At("RETURN"))
-    private void registerDimensions(WorldSaveHandler saveHandler, PersistentStateManager persistentStateManager, LevelProperties levelProperties, LevelInfo levelInfo, WorldGenerationProgressListener worldGenerationProgressListener, CallbackInfo ci) {
+    private void registerDimensions(OldWorldSaveHandler saveHandler, LevelProperties levelProperties, LevelInfo levelInfo, WorldGenerationProgressListener worldGenerationProgressListener, CallbackInfo ci) {
+        if(this.isDemo()) throw new RuntimeException("Cardinal: Demo Mode not supported");
         this.saveHandler = saveHandler;
         this.worldGenerationProgressListener = worldGenerationProgressListener;
         Cardinal.getLogger().info("unloading dimensions...");
         for(ServerWorld world : worlds.values()) {
             DimensionType type = world.dimension.getType();
             if(type.getRawId() != 0) { //TODO blacklist/whitelist -> config
-                unloadWorld(type, world, false);
+                unloadWorld(type, world, true);
             }
         }
-        RegionFileCache.clear();
+        IOHelper.clearRegionCache();
     }
 
-    private void unloadWorld(DimensionType type, ServerWorld world, boolean printLogMessage) {
-        if(printLogMessage) {
+    private void unloadWorld(DimensionType type, ServerWorld world, boolean suppressLogging) {
+        if(!suppressLogging) {
             Cardinal.getLogger().info("unloading dimension {}", DimensionType.getId(type));
         }
         try {
-            world.save(null, true); //boolean: flush to disk immediately
+            world.save(null, true, suppressLogging); //boolean 1: flush to disk immediately
             world.close();
         }
-        catch (SessionLockException e) {
+        catch (SessionLockException | IOException e) {
             Cardinal.getLogger().error(e.getMessage());
         }
     }
@@ -81,7 +84,7 @@ public abstract class MixinMinecraftServer {
             ServerWorld overWorld = worlds.get(DimensionType.OVERWORLD);
             Validate.notNull(overWorld, "Cardinal: Overworld not loaded!");
             Cardinal.getLogger().info("Loading dimension {}", DimensionType.getId(dimensionType));
-            ServerWorld world = new SecondaryServerWorld((MinecraftServer) (Object) this, this.field_17200, saveHandler, dimensionType, overWorld, this.profiler, this.worldGenerationProgressListener).initializeAsSecondaryWorld();
+            ServerWorld world = new SecondaryServerWorld(overWorld, (MinecraftServer) (Object) this, this.field_17200, saveHandler, dimensionType, this.profiler, this.worldGenerationProgressListener);
             this.worlds.put(dimensionType, world);
             world.registerListener(new ServerWorldListener((MinecraftServer) (Object) this, world));
             if(!this.isSinglePlayer()) {
@@ -97,8 +100,10 @@ public abstract class MixinMinecraftServer {
     @Shadow
     public abstract GameMode getDefaultGameMode();
 
+    @Shadow public abstract boolean isDemo();
+
     @Inject(method = "save", at = @At(value = "HEAD"))
-    private void save(boolean suppressLogMessages, boolean flushToDisk, CallbackInfo ci) {
+    private void save(boolean suppressLogMessages, boolean flushToDisk, boolean boolean_2, CallbackInfoReturnable<Boolean> cir) {
         Iterator<DimensionType> iterator = this.worlds.keySet().iterator();
         while(iterator.hasNext()) {
             DimensionType type = iterator.next();
@@ -110,13 +115,22 @@ public abstract class MixinMinecraftServer {
             if(world instanceof SecondaryServerWorld && world.players.size() == 0) {
                 unloadWorld(type, world, !suppressLogMessages);
                 iterator.remove();
-                RegionFileCache.clear();
             }
         }
+        IOHelper.clearRegionCache();
     }
 
     @Inject(method = "shutdown", at = @At("RETURN"))
     private void shutDown(CallbackInfo ci) {
-        RegionFileCache.clear(); //release the lock on unloaded region files
+        IOHelper.clearRegionCache();
+    }
+
+    @Override
+    public void unloadWorld(DimensionType type) {
+        ServerWorld world = this.worlds.get(type);
+        if(world != null) {
+            unloadWorld(type, world, false);
+        }
+        IOHelper.clearRegionCache();
     }
 }
